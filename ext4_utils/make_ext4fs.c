@@ -26,6 +26,7 @@
 #include <assert.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,7 +79,8 @@ static int filter_dot(const struct dirent *d)
 	return (strcmp(d->d_name, "..") && strcmp(d->d_name, "."));
 }
 
-static u32 build_default_directory_structure()
+static u32 build_default_directory_structure(const char *dir_path,
+					     struct selabel_handle *sehnd)
 {
 	u32 inode;
 	u32 root_inode;
@@ -96,6 +98,22 @@ static u32 build_default_directory_structure()
 	inode_set_permissions(inode, dentries.mode,
 		dentries.uid, dentries.gid, dentries.mtime);
 
+#ifndef USE_MINGW
+	if (sehnd) {
+		char *path = NULL;
+		char *secontext = NULL;
+
+		asprintf(&path, "%slost+found", dir_path);
+		if (selabel_lookup(sehnd, &secontext, path, S_IFDIR) < 0) {
+			error("cannot lookup security context for %s", path);
+		} else {
+			inode_set_selinux(inode, secontext);
+			freecon(secontext);
+		}
+		free(path);
+	}
+#endif
+
 	return root_inode;
 }
 
@@ -109,7 +127,7 @@ static u32 build_default_directory_structure()
    if the image were mounted at the specified mount point */
 static u32 build_directory_structure(const char *full_path, const char *dir_path,
 		u32 dir_inode, fs_config_func_t fs_config_func,
-		struct selabel_handle *sehnd, int verbose)
+		struct selabel_handle *sehnd, int verbose, time_t fixed_time)
 {
 	int entries = 0;
 	struct dentry *dentries;
@@ -163,7 +181,11 @@ static u32 build_directory_structure(const char *full_path, const char *dir_path
 
 		dentries[i].size = stat.st_size;
 		dentries[i].mode = stat.st_mode & (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO);
-		dentries[i].mtime = stat.st_mtime;
+		if (fixed_time == -1) {
+			dentries[i].mtime = stat.st_mtime;
+		} else {
+			dentries[i].mtime = fixed_time;
+		}
 		uint64_t capabilities;
 		if (fs_config_func != NULL) {
 #ifdef ANDROID
@@ -256,7 +278,7 @@ static u32 build_directory_structure(const char *full_path, const char *dir_path
 			if (ret < 0)
 				critical_error_errno("asprintf");
 			entry_inode = build_directory_structure(subdir_full_path,
-					subdir_dir_path, inode, fs_config_func, sehnd, verbose);
+					subdir_dir_path, inode, fs_config_func, sehnd, verbose, fixed_time);
 			free(subdir_full_path);
 			free(subdir_dir_path);
 		} else if (dentries[i].file_type == EXT4_FT_SYMLINK) {
@@ -329,7 +351,7 @@ static u32 compute_inodes_per_group()
 	u32 blocks = DIV_ROUND_UP(info.len, info.block_size);
 	u32 block_groups = DIV_ROUND_UP(blocks, info.blocks_per_group);
 	u32 inodes = DIV_ROUND_UP(info.inodes, block_groups);
-	inodes = ALIGN(inodes, (info.block_size / info.inode_size));
+	inodes = EXT4_ALIGN(inodes, (info.block_size / info.inode_size));
 
 	/* After properly rounding up the number of inodes/group,
 	 * make sure to update the total inodes field in the info struct.
@@ -357,28 +379,28 @@ static u32 compute_bg_desc_reserve_blocks()
 }
 
 void reset_ext4fs_info() {
-    // Reset all the global data structures used by make_ext4fs so it
-    // can be called again.
-    memset(&info, 0, sizeof(info));
-    memset(&aux_info, 0, sizeof(aux_info));
+	// Reset all the global data structures used by make_ext4fs so it
+	// can be called again.
+	memset(&info, 0, sizeof(info));
+	memset(&aux_info, 0, sizeof(aux_info));
 
-    if (info.sparse_file) {
-        sparse_file_destroy(info.sparse_file);
-        info.sparse_file = NULL;
-    }
+	if (ext4_sparse_file) {
+		sparse_file_destroy(ext4_sparse_file);
+		ext4_sparse_file = NULL;
+	}
 }
 
 int make_ext4fs_sparse_fd(int fd, long long len,
-                const char *mountpoint, struct selabel_handle *sehnd)
+				const char *mountpoint, struct selabel_handle *sehnd)
 {
 	reset_ext4fs_info();
 	info.len = len;
 
-	return make_ext4fs_internal(fd, NULL, mountpoint, NULL, 0, 1, 0, 0, sehnd, 0);
+	return make_ext4fs_internal(fd, NULL, mountpoint, NULL, 0, 1, 0, 0, sehnd, 0, -1, NULL);
 }
 
 int make_ext4fs(const char *filename, long long len,
-                const char *mountpoint, struct selabel_handle *sehnd)
+				const char *mountpoint, struct selabel_handle *sehnd)
 {
 	int fd;
 	int status;
@@ -392,7 +414,7 @@ int make_ext4fs(const char *filename, long long len,
 		return EXIT_FAILURE;
 	}
 
-	status = make_ext4fs_internal(fd, NULL, mountpoint, NULL, 0, 0, 0, 1, sehnd, 0);
+	status = make_ext4fs_internal(fd, NULL, mountpoint, NULL, 0, 0, 0, 1, sehnd, 0, -1, NULL);
 	close(fd);
 
 	return status;
@@ -409,8 +431,11 @@ static char *canonicalize_slashes(const char *str, bool absolute)
 	int newlen = len;
 	char *ptr;
 
-	if (len == 0 && absolute) {
-		return strdup("/");
+	if (len == 0) {
+		if (absolute)
+			return strdup("/");
+		else
+			return strdup("");
 	}
 
 	if (str[0] != '/' && absolute) {
@@ -456,9 +481,10 @@ static char *canonicalize_rel_slashes(const char *str)
 }
 
 int make_ext4fs_internal(int fd, const char *_directory,
-                         const char *_mountpoint, fs_config_func_t fs_config_func, int gzip,
-                         int sparse, int crc, int wipe,
-                         struct selabel_handle *sehnd, int verbose)
+						 const char *_mountpoint, fs_config_func_t fs_config_func, int gzip,
+						 int sparse, int crc, int wipe,
+						 struct selabel_handle *sehnd, int verbose, time_t fixed_time,
+						 FILE* block_list_file)
 {
 	u32 root_inode_num;
 	u16 root_mode;
@@ -531,7 +557,7 @@ int make_ext4fs_internal(int fd, const char *_directory,
 	info.bg_desc_reserve_blocks = compute_bg_desc_reserve_blocks();
 
 	printf("Creating filesystem with parameters:\n");
-	printf("    Size: %llu\n", info.len);
+	printf("    Size: %"PRIu64"\n", info.len);
 	printf("    Block size: %d\n", info.block_size);
 	printf("    Blocks per group: %d\n", info.blocks_per_group);
 	printf("    Inodes per group: %d\n", info.inodes_per_group);
@@ -541,11 +567,11 @@ int make_ext4fs_internal(int fd, const char *_directory,
 
 	ext4_create_fs_aux_info();
 
-	printf("    Blocks: %llu\n", aux_info.len_blocks);
+	printf("    Blocks: %"PRIu64"\n", aux_info.len_blocks);
 	printf("    Block groups: %d\n", aux_info.groups);
 	printf("    Reserved block group size: %d\n", info.bg_desc_reserve_blocks);
 
-	info.sparse_file = sparse_file_new(info.block_size, info.len);
+	ext4_sparse_file = sparse_file_new(info.block_size, info.len);
 
 	block_allocator_init();
 
@@ -563,13 +589,13 @@ int make_ext4fs_internal(int fd, const char *_directory,
 #ifdef USE_MINGW
 	// Windows needs only 'create an empty fs image' functionality
 	assert(!directory);
-	root_inode_num = build_default_directory_structure();
+	root_inode_num = build_default_directory_structure(mountpoint, sehnd);
 #else
 	if (directory)
 		root_inode_num = build_directory_structure(directory, mountpoint, 0,
-                        fs_config_func, sehnd, verbose);
+			fs_config_func, sehnd, verbose, fixed_time);
 	else
-		root_inode_num = build_default_directory_structure();
+		root_inode_num = build_default_directory_structure(mountpoint, sehnd);
 #endif
 
 	root_mode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
@@ -596,19 +622,37 @@ int make_ext4fs_internal(int fd, const char *_directory,
 
 	ext4_queue_sb();
 
+	if (block_list_file) {
+		size_t dirlen = directory ? strlen(directory) : 0;
+		struct block_allocation* p = get_saved_allocation_chain();
+		while (p) {
+			if (directory && strncmp(p->filename, directory, dirlen) == 0) {
+				// substitute mountpoint for the leading directory in the filename, in the output file
+				fprintf(block_list_file, "%s%s", mountpoint, p->filename + dirlen);
+			} else {
+				fprintf(block_list_file, "%s", p->filename);
+			}
+			print_blocks(block_list_file, p);
+			struct block_allocation* pn = p->next;
+			free_alloc(p);
+			p = pn;
+		}
+	}
+
 	printf("Created filesystem with %d/%d inodes and %d/%d blocks\n",
 			aux_info.sb->s_inodes_count - aux_info.sb->s_free_inodes_count,
 			aux_info.sb->s_inodes_count,
 			aux_info.sb->s_blocks_count_lo - aux_info.sb->s_free_blocks_count_lo,
 			aux_info.sb->s_blocks_count_lo);
 
-	if (wipe)
+	if (wipe && WIPE_IS_SUPPORTED) {
 		wipe_block_device(fd, info.len);
+	}
 
 	write_ext4_image(fd, gzip, sparse, crc);
 
-	sparse_file_destroy(info.sparse_file);
-	info.sparse_file = NULL;
+	sparse_file_destroy(ext4_sparse_file);
+	ext4_sparse_file = NULL;
 
 	free(mountpoint);
 	free(directory);

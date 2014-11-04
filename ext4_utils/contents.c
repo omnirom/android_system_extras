@@ -28,17 +28,21 @@
 #define XATTR_CAPS_SUFFIX "capability"
 
 #include "ext4_utils.h"
-#include "ext4.h"
 #include "make_ext4fs.h"
 #include "allocate.h"
 #include "contents.h"
 #include "extent.h"
 #include "indirect.h"
-#include "xattr.h"
 
 #ifdef USE_MINGW
 #define S_IFLNK 0  /* used by make_link, not needed under mingw */
 #endif
+
+static struct block_allocation* saved_allocation_head = NULL;
+
+struct block_allocation* get_saved_allocation_chain() {
+	return saved_allocation_head;
+}
 
 static u32 dentry_size(u32 entries, struct dentry *dentries)
 {
@@ -47,7 +51,7 @@ static u32 dentry_size(u32 entries, struct dentry *dentries)
 	unsigned int dentry_len;
 
 	for (i = 0; i < entries; i++) {
-		dentry_len = 8 + ALIGN(strlen(dentries[i].filename), 4);
+		dentry_len = 8 + EXT4_ALIGN(strlen(dentries[i].filename), 4);
 		if (len % info.block_size + dentry_len > info.block_size)
 			len += info.block_size - (len % info.block_size);
 		len += dentry_len;
@@ -61,7 +65,7 @@ static struct ext4_dir_entry_2 *add_dentry(u8 *data, u32 *offset,
 		u8 file_type)
 {
 	u8 name_len = strlen(name);
-	u16 rec_len = 8 + ALIGN(name_len, 4);
+	u16 rec_len = 8 + EXT4_ALIGN(name_len, 4);
 	struct ext4_dir_entry_2 *dentry;
 
 	u32 start_block = *offset / info.block_size;
@@ -188,8 +192,14 @@ u32 make_file(const char *filename, u64 len)
 		return EXT4_ALLOCATE_FAILED;
 	}
 
-	if (len > 0)
-		inode_allocate_file_extents(inode, len, filename);
+	if (len > 0) {
+		struct block_allocation* alloc = inode_allocate_file_extents(inode, len, filename);
+		if (alloc) {
+			alloc->filename = strdup(filename);
+			alloc->next = saved_allocation_head;
+			saved_allocation_head = alloc;
+		}
+	}
 
 	inode->i_mode = S_IFREG;
 	inode->i_links_count = 1;
@@ -330,7 +340,7 @@ static void xattr_assert_sane(struct ext4_xattr_entry *entry)
 static void ext4_xattr_hash_entry(struct ext4_xattr_header *header,
 		struct ext4_xattr_entry *entry)
 {
-	__u32 hash = 0;
+	u32 hash = 0;
 	char *name = entry->e_name;
 	int n;
 
@@ -341,7 +351,7 @@ static void ext4_xattr_hash_entry(struct ext4_xattr_header *header,
 	}
 
 	if (entry->e_value_block == 0 && entry->e_value_size != 0) {
-		__le32 *value = (__le32 *)((char *)header +
+		u32 *value = (u32 *)((char *)header +
 			le16_to_cpu(entry->e_value_offs));
 		for (n = (le32_to_cpu(entry->e_value_size) +
 			EXT4_XATTR_ROUND) >> EXT4_XATTR_PAD_BITS; n; n--) {
@@ -478,4 +488,3 @@ int inode_set_capabilities(u32 inode_num, uint64_t capabilities) {
 	return xattr_add(inode_num, EXT4_XATTR_INDEX_SECURITY,
 		XATTR_CAPS_SUFFIX, &cap_data, sizeof(cap_data));
 }
-

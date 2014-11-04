@@ -61,16 +61,13 @@ endef
 # First, the tests in 'common'
 
 sources := \
-    common/bench_stdio.c \
     common/test_clock.c \
     common/test_cpu_set.c \
-    common/test_drand48.c \
     common/test_executable_destructor.c \
     common/test_getaddrinfo.c \
     common/test_gethostbyname.c \
     common/test_gethostname.c \
     common/test_pthread_cleanup_push.c \
-    common/test_pthread_getcpuclockid.c \
     common/test_pthread_join.c \
     common/test_pthread_mutex.c \
     common/test_pthread_rwlock.c \
@@ -79,9 +76,6 @@ sources := \
     common/test_sem_post.c \
     common/test_seteuid.c \
     common/test_static_cpp_mutex.cpp \
-    common/test_strftime_2039.c \
-    common/test_strptime.c \
-    common/test_tm_zone.c \
     common/test_udp.c \
 
 # _XOPEN_SOURCE=600 is needed to get pthread_mutexattr_settype() on GLibc
@@ -128,13 +122,6 @@ EXTRA_LDLIBS := -ldl -Wl,--export-dynamic -Wl,-u,foo
 $(call device-test, $(sources))
 
 
-sources := \
-    common/test_libgen.c \
-
-EXTRA_CFLAGS := -DHOST
-$(call host-test, $(sources))
-$(call device-test, $(sources))
-
 # Second, the Bionic-specific tests
 
 sources :=  \
@@ -151,20 +138,8 @@ $(call device-test, $(sources))
 # Third, the other tests
 
 sources := \
-    other/bench_locks.c \
-    other/test_arc4random.c \
     other/test_sysconf.c \
-    other/test_system.c \
-    other/test_thread_max.c \
-    other/test_timer_create.c \
-    other/test_timer_create2.c \
-    other/test_timer_create3.c \
     other/test_vfprintf_leak.c \
-
-ifeq ($(TARGET_ARCH),arm)
-sources += \
-    other/test_atomics.c
-endif
 
 $(call device-test, $(sources))
 
@@ -231,21 +206,6 @@ LOCAL_LDFLAGS := -ldl
 LOCAL_MODULE_TAGS := tests
 include $(BUILD_EXECUTABLE)
 
-# Testing 'clone' is only possible on Linux systems
-include $(CLEAR_VARS)
-LOCAL_SRC_FILES := common/test_clone.c
-LOCAL_MODULE := test_clone
-LOCAL_MODULE_TAGS := tests
-include $(BUILD_EXECUTABLE)
-
-ifeq ($(HOST_OS),linux)
-include $(CLEAR_VARS)
-LOCAL_SRC_FILES := common/test_clone.c
-LOCAL_MODULE := test_clone
-LOCAL_MODULE_TAGS := tests
-include $(BUILD_HOST_EXECUTABLE)
-endif
-
 # TODO: Add a variety of GLibc test programs too...
 
 # Hello World to test libstdc++ support
@@ -255,32 +215,5 @@ sources := \
 
 EXTRA_CFLAGS := -mandroid
 #$(call device-test, $(sources))
-
-# NOTE: We build both a shared and static version of bench_pthread.
-# the shared version will use the target device's C library, while
-# the static one will use the current build product implementation.
-# This is ideal to quantify pthread optimizations.
-include $(CLEAR_VARS)
-LOCAL_SRC_FILES := common/bench_pthread.c
-LOCAL_MODULE := bench_pthread_shared
-LOCAL_MODULE_TAGS := tests
-include $(BUILD_EXECUTABLE)
-
-include $(CLEAR_VARS)
-LOCAL_SRC_FILES := common/bench_pthread.c
-LOCAL_MODULE := bench_pthread_static
-LOCAL_MODULE_TAGS := tests
-LOCAL_FORCE_STATIC_EXECUTABLE := true
-LOCAL_STATIC_LIBRARIES := libc
-include $(BUILD_EXECUTABLE)
-
-ifeq ($(HOST_OS),linux)
-include $(CLEAR_VARS)
-LOCAL_SRC_FILES := common/bench_pthread.c
-LOCAL_MODULE := bench_pthread
-LOCAL_LDLIBS += -lpthread -lrt
-LOCAL_MODULE_TAGS := tests
-include $(BUILD_HOST_EXECUTABLE)
-endif
 
 endif  # BIONIC_TESTS
