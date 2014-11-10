@@ -64,25 +64,25 @@ int wipe_block_device(int fd, s64 len)
 #endif
 	return 0;
 }
-
-#else  /* __linux__ */
-#error "Missing block device wiping implementation for this platform!"
-#endif
-
-#else  /* WIPE_IS_SUPPORTED */
-
+#else  /* SUPPRESS_EMMC_WIPE */
 int wipe_block_device(int fd, s64 len)
 {
 	warn("Wipe via secure discard suppressed due to bug in EMMC firmware\n");
 	return 1;
 }
 #endif
-#else
+#else  /* __linux__ */
 int wipe_block_device(int fd, s64 len)
 {
 	error("wipe not supported on non-linux platforms");
 	/* Wiping is not supported on this platform. */
 	return 1;
 }
-
+#endif
+#else  /* WIPE_IS_SUPPORTED */
+int wipe_block_device(int fd, s64 len)
+{
+	error("Missing block device wiping implementation for this platform!");
+	return 1;
+}
 #endif  /* WIPE_IS_SUPPORTED */
