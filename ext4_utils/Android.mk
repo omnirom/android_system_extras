@@ -49,7 +49,7 @@ include $(BUILD_HOST_EXECUTABLE)
 
 
 include $(CLEAR_VARS)
-LOCAL_SRC_FILES := make_ext4fs_main.c
+LOCAL_SRC_FILES := make_ext4fs_main.c canned_fs_config.c
 LOCAL_MODULE := utility_make_ext4fs
 LOCAL_MODULE_STEM := make_ext4fs
 LOCAL_MODULE_TAGS := optional
@@ -60,6 +60,7 @@ LOCAL_UNSTRIPPED_PATH := $(PRODUCT_OUT)/symbols/utilities
 LOCAL_STATIC_LIBRARIES += \
     libext4_utils_static \
     libselinux \
+    libmincrypt \
     libsparse_static \
     libz \
     libcutils \
