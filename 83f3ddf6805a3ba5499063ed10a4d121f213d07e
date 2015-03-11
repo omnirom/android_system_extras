@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "6b22818b_76d330d9",
+        "filename": "ext4_utils/wipe.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 41,
+      "author": {
+        "id": 1000008
+      },
+      "writtenOn": "2015-03-11T21:52:32Z",
+      "side": 0,
+      "message": "Relocating this does make sense, although the current location will only cause problems in the case of a device with SUPPRESS_SECURE_ERASE set when wiping a non-block device.\n\nWon\u0027t affect cases of wiping block devices.",
+      "revId": "83f3ddf6805a3ba5499063ed10a4d121f213d07e",
+      "serverId": "56841c99-7c94-43d4-bf0b-cb4707e66d55",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "6b22818b_56d634ca",
+        "filename": "ext4_utils/wipe.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 77,
+      "author": {
+        "id": 1000008
+      },
+      "writtenOn": "2015-03-11T21:52:32Z",
+      "side": 0,
+      "message": "Yeah this is just a cleanup but makes sense",
+      "revId": "83f3ddf6805a3ba5499063ed10a4d121f213d07e",
+      "serverId": "56841c99-7c94-43d4-bf0b-cb4707e66d55",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "6b22818b_36d1b8d2",
+        "filename": "ext4_utils/wipe.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 83,
+      "author": {
+        "id": 1000008
+      },
+      "writtenOn": "2015-03-11T21:52:32Z",
+      "side": 0,
+      "message": "Pretty sure this is in upstream so we shouldn\u0027t be removing it",
+      "revId": "83f3ddf6805a3ba5499063ed10a4d121f213d07e",
+      "serverId": "56841c99-7c94-43d4-bf0b-cb4707e66d55",
+      "unresolved": false
+    }
+  ]
+}
