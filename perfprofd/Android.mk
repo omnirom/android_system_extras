@@ -16,7 +16,7 @@ LOCAL_CPP_EXTENSION := .cc
 LOCAL_MODULE := libperfprofdcore
 LOCAL_MODULE_CLASS := STATIC_LIBRARIES
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 proto_header_dir := $(call local-generated-sources-dir)/proto/$(LOCAL_PATH)
 LOCAL_C_INCLUDES += $(proto_header_dir) $(LOCAL_PATH)/quipper/kernel-headers
 LOCAL_STATIC_LIBRARIES := libbase
@@ -45,7 +45,7 @@ LOCAL_CPP_EXTENSION := .cc
 LOCAL_CXX_STL := libc++
 LOCAL_MODULE := libperfprofdutils
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 LOCAL_CPPFLAGS += $(perfprofd_cppflags)
 LOCAL_SRC_FILES := perfprofdutils.cc
 include $(BUILD_STATIC_LIBRARY)
@@ -65,7 +65,7 @@ LOCAL_CPPFLAGS += $(perfprofd_cppflags)
 LOCAL_CFLAGS := -Wall -Werror -std=gnu++11
 LOCAL_MODULE := perfprofd
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 LOCAL_SHARED_LIBRARIES += libcutils
 LOCAL_INIT_RC := perfprofd.rc
 include $(BUILD_EXECUTABLE)

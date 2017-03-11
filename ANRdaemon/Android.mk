@@ -7,7 +7,7 @@ LOCAL_SRC_FILES := ANRdaemon.cpp
 LOCAL_C_INCLUDES += external/zlib
 LOCAL_MODULE := anrd
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 LOCAL_SHARED_LIBRARIES := \
     libbinder \
     libcutils \
